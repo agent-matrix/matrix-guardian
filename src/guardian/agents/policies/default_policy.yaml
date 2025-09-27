@@ -1,0 +1,6 @@
+# Default Autopilot policy (safe, HITL-first)
+autopilot:
+  policy:
+    safe_mode: true
+    hitl_enabled: true
+    risk_max_auto: low

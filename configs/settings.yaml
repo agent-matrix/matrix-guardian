@@ -1,0 +1,41 @@
+# Default settings for the Matrix Guardian application.
+# Values here can be overridden by environment variables (e.g., from .env).
+
+app:
+  name: "matrix-guardian"
+  log_level: "INFO"
+
+http:
+  timeout_seconds: 8
+  retries: 2
+  backoff: 0.5 # seconds
+
+endpoints:
+  matrixhub_api_base: ${MATRIXHUB_API_BASE}
+  matrix_ai_base: ${MATRIX_AI_BASE}
+
+db:
+  url: ${DATABASE_URL}
+
+sandbox:
+  allowed_hosts: ${SANDBOX_ALLOWED_HOSTS:"api.matrixhub.io"}
+  cpu: ${SANDBOX_CPU_LIMIT:1}
+  mem_mb: ${SANDBOX_MEM_MB:512}
+  timeout_sec: ${SANDBOX_TIMEOUT_SEC:30}
+
+ai:
+  temperature: 0.2
+  max_new_tokens: 256
+
+security:
+  api_token: ${API_TOKEN:null}
+  jwt_public_key_pem: ${JWT_PUBLIC_KEY_PEM:null}
+
+# >>> AUTOPILOT: settings
+autopilot:
+  enabled: ${AUTOPILOT_ENABLED:false}
+  api_enabled: ${AUTOPILOT_API_ENABLED:false}
+  interval_sec: ${AUTOPILOT_INTERVAL_SEC:60}
+  policy: ${AUTOPILOT_POLICY:"src/guardian/agents/policies/default_policy.yaml"}
+  safe_mode: ${AUTOPILOT_SAFE_MODE:true}
+# <<< AUTOPILOT: settings
