@@ -2,101 +2,60 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: matrix_db
-    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-matrix}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matrix}
-      POSTGRES_DB: ${POSTGRES_DB:-matrix_guardian}
-      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: matrix
+      POSTGRES_PASSWORD: matrix
+      POSTGRES_DB: matrix_guardian
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-matrix} -d ${POSTGRES_DB:-matrix_guardian}"]
+      test: ["CMD-SHELL", "pg_isready -U matrix -d matrix_guardian"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    networks:
-      - matrix-network
 
   guardian:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile
-    image: matrix-guardian:latest
     container_name: matrix_guardian_app
-    restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-matrix}:${POSTGRES_PASSWORD:-matrix}@db:5432/${POSTGRES_DB:-matrix_guardian}
-      - MATRIXHUB_API_BASE=${MATRIXHUB_API_BASE:-https://api.matrixhub.io}
-      - MATRIX_AI_BASE=${MATRIX_AI_BASE:-https://your-user-name-matrix-ai.hf.space}
-      - API_TOKEN=${API_TOKEN:-dev-secret-token}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
+      - DATABASE_URL=postgresql+psycopg://matrix:matrix@db:5432/matrix_guardian
+      - MATRIXHUB_API_BASE=https://api.matrixhub.io
+      - MATRIX_AI_BASE=https://your-user-name-matrix-ai.hf.space
+      - API_TOKEN=dev-secret-token
+      # - AUTOPILOT_ENABLED=true # Uncomment to enable the worker
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "${GUARDIAN_PORT:-8000}:8000"
-    volumes:
-      - guardian-logs:/app/logs
-      - guardian-data:/app/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - matrix-network
+      - "8000:8000"
 
 # >>> AUTOPILOT: worker service
   autopilot_worker:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile
-    image: matrix-guardian:latest
-    container_name: matrix_autopilot_worker
-    restart: unless-stopped
     environment:
       - AUTOPILOT_ENABLED=true
       - AUTOPILOT_API_ENABLED=false
-      - AUTOPILOT_INTERVAL_SEC=${AUTOPILOT_INTERVAL_SEC:-60}
+      - AUTOPILOT_INTERVAL_SEC=60
       - AUTOPILOT_POLICY=src/guardian/agents/policies/default_policy.yaml
-      - AUTOPILOT_SAFE_MODE=${AUTOPILOT_SAFE_MODE:-true}
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-matrix}:${POSTGRES_PASSWORD:-matrix}@db:5432/${POSTGRES_DB:-matrix_guardian}
-      - MATRIXHUB_API_BASE=${MATRIXHUB_API_BASE:-https://api.matrixhub.io}
-      - MATRIX_AI_BASE=${MATRIX_AI_BASE:-https://your-user-name-matrix-ai.hf.space}
-      - API_TOKEN=${API_TOKEN:-dev-secret-token}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - AUTOPILOT_SAFE_MODE=true
+      - DATABASE_URL=postgresql+psycopg://matrix:matrix@db:5432/matrix_guardian
+      - MATRIXHUB_API_BASE=https://api.matrixhub.io
+      - MATRIX_AI_BASE=https://your-user-name-matrix-ai.hf.space
+      - API_TOKEN=dev-secret-token
     command: ["python", "-m", "guardian.runner.autopilot_worker"]
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - autopilot-logs:/app/logs
-      - autopilot-data:/app/data
-    networks:
-      - matrix-network
 # <<< AUTOPILOT: worker service
-
-networks:
-  matrix-network:
-    name: matrix_network
-    driver: bridge
 
 volumes:
   pgdata:
     name: matrix_postgres_data
-  guardian-logs:
-    name: matrix_guardian_logs
-  guardian-data:
-    name: matrix_guardian_data
-  autopilot-logs:
-    name: matrix_autopilot_logs
-  autopilot-data:
-    name: matrix_autopilot_data

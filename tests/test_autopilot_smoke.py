@@ -1,9 +1,7 @@
-import asyncio
-import types
 import pytest
 
-from guardian.agents.policy import Policy
 from guardian.agents.autopilot import Autopilot
+from guardian.agents.policy import Policy
 from guardian.autopilot_settings import AutopilotSettings
 
 
