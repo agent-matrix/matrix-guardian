@@ -20,6 +20,7 @@
 
 ### Key Features
 
+#### Backend
 - **Autonomous Health Monitoring**: Continuously observes MCP server health and performance metrics
 - **AI-Powered Remediation**: Generates intelligent remediation plans using matrix-ai service
 - **Human-in-the-Loop (HITL)**: Enforces approval workflows for critical operations (default mode)
@@ -28,6 +29,17 @@
 - **Production-Ready**: Built with FastAPI, async/await patterns, and comprehensive error handling
 - **Fully Observable**: Structured JSON logging, event tracking, and audit trails
 - **Docker-Ready**: Complete containerization with Docker Compose support
+
+#### Frontend (NEW)
+- **Modern Admin Dashboard**: React-based control plane with real-time monitoring
+- **Visual Autopilot Control**: Enable/disable autonomous orchestration with safety toggles
+- **HITL Approval Interface**: Review and approve/reject high-risk remediation plans
+- **Health Probe Dashboard**: Monitor all HTTP and MCP protocol health checks with latency metrics
+- **Neural Net Chat**: Interactive AI assistant for system diagnostics and troubleshooting
+- **Configuration Management**: View autopilot policies and manage AI provider settings
+- **Multi-Provider AI Support**: Configure OpenAI, Claude, WatsonX, or Ollama providers
+- **LangGraph Visualization**: Visual representation of agent decision pipeline
+- **Responsive Design**: Dark-themed, cyberpunk-inspired UI with Tailwind CSS
 
 ---
 
@@ -184,7 +196,11 @@ make run-autopilot
 |--------|----------|-------------|
 | `GET` | `/healthz` | Liveness check |
 | `GET` | `/readyz` | Readiness check (includes DB health) |
+| `GET` | `/threads` | List all workflow threads |
 | `POST` | `/threads/{thread_id}/resume` | Resume paused HITL workflow |
+| `GET` | `/probes` | List all health probes and their status |
+| `GET` | `/config` | Get system configuration and policy |
+| `PUT` | `/config` | Update system configuration |
 
 #### Autopilot Endpoints (Feature-Flagged)
 
@@ -194,6 +210,15 @@ Enable by setting `AUTOPILOT_API_ENABLED=true`
 |--------|----------|-------------|
 | `GET` | `/autopilot/status` | Get current Autopilot status and metrics |
 | `POST` | `/autopilot/plan-once` | Execute a single decision cycle |
+
+#### AI Settings Endpoints (NEW)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/settings/ai` | Get AI provider configuration |
+| `PUT` | `/settings/ai` | Update AI provider settings |
+| `GET` | `/settings/ai/{provider}/models` | List available models for provider |
+| `POST` | `/settings/ai/{provider}/test` | Test AI provider connection |
 
 ### Example API Usage
 
@@ -335,7 +360,11 @@ matrix-guardian/
 │   │   └── routes/                # API route handlers
 │   │       ├── health.py          # Health check endpoints
 │   │       ├── resume.py          # HITL resume endpoint
-│   │       └── autopilot.py       # Autopilot control endpoints
+│   │       ├── autopilot.py       # Autopilot control endpoints
+│   │       ├── threads.py         # Thread management (NEW)
+│   │       ├── probes.py          # Health probe monitoring (NEW)
+│   │       ├── config.py          # Configuration management (NEW)
+│   │       └── ai_settings.py     # AI provider settings (NEW)
 │   ├── agents/                    # Autopilot orchestration
 │   │   ├── autopilot.py           # Main orchestrator
 │   │   ├── graph.py               # Decision graph/pipeline
@@ -351,6 +380,19 @@ matrix-guardian/
 │   │   └── jobs.py                # Job queue service
 │   └── runner/                    # Standalone workers
 │       └── autopilot_worker.py    # Headless Autopilot runner
+├── frontend/                      # React admin dashboard (NEW)
+│   ├── src/
+│   │   ├── App.jsx                # Main application component
+│   │   ├── main.jsx               # Entry point
+│   │   ├── index.css              # Global styles + Tailwind
+│   │   └── services/
+│   │       └── api.js             # Backend API client
+│   ├── public/                    # Static assets
+│   ├── index.html                 # HTML template
+│   ├── package.json               # Frontend dependencies
+│   ├── vite.config.js             # Vite configuration
+│   ├── tailwind.config.js         # Tailwind CSS config
+│   └── README.md                  # Frontend documentation
 ├── tests/                         # Test suite
 │   ├── test_autopilot_smoke.py    # Smoke tests
 │   └── __init__.py                # Test package initialization
@@ -566,15 +608,122 @@ limitations under the License.
 
 ---
 
+## Frontend Setup
+
+### Quick Start
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+# or use bun for faster installation:
+bun install
+
+# Configure environment
+cp .env.example .env
+# Edit .env to set VITE_API_BASE_URL=http://localhost:8000
+
+# Start development server
+npm run dev
+```
+
+The admin dashboard will be available at `http://localhost:3000`
+
+### Production Build
+
+```bash
+cd frontend
+npm run build
+# Output will be in frontend/dist/
+
+# Serve with any static file server
+npx serve dist -p 3000
+```
+
+### Frontend Features
+
+#### 1. Guardian Control Dashboard
+- Real-time autopilot status monitoring
+- Enable/disable autonomous orchestration
+- Safe mode toggle for additional safety
+- Active thread count and cycle time metrics
+- Intervention queue with risk categorization (Low/Medium/High)
+- Visual LangGraph decision pipeline
+
+#### 2. Neural Net Interface
+- Chat-based AI assistant
+- System diagnostics and troubleshooting
+- Real-time conversation with Guardian AI
+- Context-aware responses
+
+#### 3. HITL Interventions
+- View all paused workflow threads
+- Detailed remediation plan display
+- Risk scoring and categorization
+- Approve/reject actions with operator comments
+- Thread status tracking and history
+
+#### 4. Probes & Status
+- HTTP and MCP protocol health checks
+- Real-time latency monitoring
+- Status indicators (OK/DEGRADED/FAILED)
+- Last check timestamps
+- Performance warnings for slow probes
+
+#### 5. Policy Configuration
+- View autopilot policy YAML
+- Configuration flags display
+- Worker process status
+- Environment variable tracking
+
+#### 6. Global Settings
+- Multi-provider AI configuration (OpenAI, Claude, WatsonX, Ollama)
+- API key management with secure masking
+- Model selection with auto-discovery
+- Base URL customization
+- Active provider switching
+
+For detailed frontend documentation, see [frontend/README.md](frontend/README.md)
+
+## Full Stack Deployment
+
+### Option 1: Separate Services (Development)
+
+```bash
+# Terminal 1: Start Backend
+make run
+
+# Terminal 2: Start Frontend
+cd frontend && npm run dev
+```
+
+### Option 2: Production Deployment
+
+```bash
+# Build frontend
+cd frontend && npm run build && cd ..
+
+# Serve frontend with backend (add static file serving to FastAPI)
+# or deploy frontend to CDN/static hosting (Vercel, Netlify, S3)
+
+# Run backend in production mode
+make docker-up
+```
+
 ## Roadmap
 
+- [x] **Web dashboard for monitoring and control** ✅ Completed
+- [x] **Multi-provider AI support (OpenAI, Claude, WatsonX, Ollama)** ✅ Completed
 - [ ] Advanced policy engine with ML-based risk scoring
-- [ ] Web dashboard for monitoring and control
+- [ ] Real-time WebSocket updates for frontend
 - [ ] Extended MCP protocol support
 - [ ] Multi-region deployment support
 - [ ] Advanced telemetry and observability
 - [ ] Plugin system for custom health checks
 - [ ] GraphQL API support
+- [ ] Mobile-responsive dashboard improvements
 
 ---
 
