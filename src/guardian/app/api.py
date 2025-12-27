@@ -22,8 +22,12 @@ from fastapi import FastAPI
 
 from ..config import settings
 from ..logging import setup_logging
+from .routes import ai_settings as ai_settings_router
+from .routes import config as config_router
 from .routes import health as health_router
+from .routes import probes as probes_router
 from .routes import resume as resume_router
+from .routes import threads as threads_router
 
 
 # Initialize logging and settings
@@ -39,6 +43,10 @@ app: FastAPI = FastAPI(
 # Include API routers
 app.include_router(health_router.router, tags=["Health"])
 app.include_router(resume_router.router, tags=["Workflows"])
+app.include_router(threads_router.router, tags=["Threads"])
+app.include_router(probes_router.router, tags=["Probes"])
+app.include_router(config_router.router, tags=["Configuration"])
+app.include_router(ai_settings_router.router, tags=["AI Settings"])
 
 
 @app.on_event("startup")
