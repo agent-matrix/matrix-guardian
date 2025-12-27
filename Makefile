@@ -1,4 +1,4 @@
-.PHONY: all help install dev run test fmt lint build clean run-autopilot
+.PHONY: all help install dev run test fmt lint build clean run-autopilot build-container run-container stop-container logs-container restart-container clean-containers
 
 VENV_DIR    := .venv
 PYTHON      := $(VENV_DIR)/bin/python
@@ -71,3 +71,40 @@ run-autopilot: dev ## 🤖 Run the Autopilot worker
 	@echo "Starting Autopilot worker..."
 	$(PYTHON) -m guardian.runner.autopilot_worker
 # <<< AUTOPILOT: run target
+
+# --- Docker Container Commands ---
+build-container: ## 🐳 Build the Docker container image
+	@echo "Building Matrix Guardian Docker container..."
+	docker build -f infra/docker/Dockerfile -t matrix-guardian:latest .
+	@echo "✅ Docker image built successfully: matrix-guardian:latest"
+
+run-container: ## 🚀 Run the Docker container with docker-compose
+	@echo "Starting Matrix Guardian containers..."
+	docker-compose -f infra/docker/compose.yaml up -d
+	@echo "✅ Containers started successfully!"
+	@echo "📊 Guardian API: http://localhost:8000"
+	@echo "📊 Guardian API Docs: http://localhost:8000/docs"
+	@echo "🗄️  PostgreSQL: localhost:5432"
+	@echo ""
+	@echo "💡 Use 'make logs-container' to view logs"
+	@echo "💡 Use 'make stop-container' to stop containers"
+
+stop-container: ## ⏹️  Stop the Docker containers
+	@echo "Stopping Matrix Guardian containers..."
+	docker-compose -f infra/docker/compose.yaml down
+	@echo "✅ Containers stopped successfully!"
+
+logs-container: ## 📋 View container logs (use CTRL+C to exit)
+	@echo "Showing container logs (CTRL+C to exit)..."
+	docker-compose -f infra/docker/compose.yaml logs -f
+
+restart-container: ## 🔄 Restart the Docker containers
+	@echo "Restarting Matrix Guardian containers..."
+	docker-compose -f infra/docker/compose.yaml restart
+	@echo "✅ Containers restarted successfully!"
+
+clean-containers: ## 🧹 Stop and remove all containers, networks, and volumes
+	@echo "Cleaning up Docker containers, networks, and volumes..."
+	docker-compose -f infra/docker/compose.yaml down -v
+	@echo "✅ Cleanup complete!"
+	@echo "⚠️  Note: This removes all data including the database!"
