@@ -25,7 +25,7 @@ Copyright:
 
 from __future__ import annotations
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import AliasChoices, AnyHttpUrl, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,7 +71,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(..., description="PostgreSQL URL for LangGraph checkpointer")
 
     # API endpoints
-    MATRIXHUB_API_BASE: AnyHttpUrl = Field(..., description="Base URL for MatrixHub API")
+    MATRIXHUB_API_BASE: AnyHttpUrl = Field(
+        ...,
+        description="Base URL for MatrixHub API",
+        validation_alias=AliasChoices("MATRIXHUB_API_BASE", "MATRIX_HUB_BASE", "HUB_URL"),
+    )
     MATRIX_AI_BASE: AnyHttpUrl = Field(..., description="Base URL for the AI planning service")
 
     # HTTP client settings
@@ -80,7 +84,15 @@ class Settings(BaseSettings):
     HTTP_BACKOFF: float = 0.5
 
     # Security
-    API_TOKEN: str | None = Field(None, description="Static bearer token for API auth")
+    API_TOKEN: str | None = Field(
+        None,
+        description="Static bearer token for API auth",
+        validation_alias=AliasChoices(
+            "MATRIX_HUB_TOKEN",  # ecosystem standard for operator tooling
+            "MATRIX_TOKEN",  # fallback alias
+            "API_TOKEN",  # backward compatible
+        ),
+    )
     JWT_PUBLIC_KEY_PEM: str | None = Field(
         None, description="PEM-encoded public key for JWT auth",
     )

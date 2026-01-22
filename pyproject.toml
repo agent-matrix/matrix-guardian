@@ -112,10 +112,10 @@ matrix-guardian = "guardian.main:app"
 guardian-worker = "guardian.runner.autopilot_worker:main"
 
 # --- Hatchling Configuration ---
-[tool.hatchling.build.targets.wheel]
+[tool.hatch.build.targets.wheel]
 packages = ["src/guardian"]
 
-[tool.hatchling.build.targets.sdist]
+[tool.hatch.build.targets.sdist]
 include = [
     "/src",
     "/tests",
@@ -192,9 +192,9 @@ ignore = [
     "PLR0913", # too many arguments
     "TRY003",  # avoid specifying long messages outside exception class
     "TID252",  # prefer absolute imports (relative imports are fine for internal modules)
-    "TC001",   # move into type-checking block (can reduce readability)
-    "TC002",   # move into type-checking block
-    "TC003",   # move into type-checking block
+    "TCH001",  # move into type-checking block (can reduce readability)
+    "TCH002",  # move into type-checking block
+    "TCH003",  # move into type-checking block
     "TRY401",  # redundant exception in logging (sometimes useful for clarity)
     "COM812",  # trailing comma (conflicts with formatter)
 ]
@@ -210,6 +210,15 @@ ignore = [
 "__init__.py" = [
     "D104",    # missing docstring in public package
     "F401",    # unused imports (re-exports)
+]
+"src/guardian/services/matrix_hub_client.py" = [
+    "PLR2004", # HTTP status codes are self-documenting
+]
+"src/guardian/services/matrix_ai_client.py" = [
+    "PLR2004", # HTTP status codes are self-documenting
+]
+"src/guardian/agents/tools/http_probe.py" = [
+    "PLR2004", # HTTP status codes are self-documenting
 ]
 
 [tool.ruff.lint.pydocstyle]
