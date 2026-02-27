@@ -76,6 +76,64 @@ class MatrixHubClient:
         self.base_url = (base_url or str(settings.MATRIXHUB_API_BASE)).rstrip("/")
         self.timeout = timeout or float(settings.HTTP_TIMEOUT_SECONDS)
 
+    # ---------- Compatibility Helpers ----------
+
+    async def _get_json(
+        self, url: str, *, params: dict[str, Any] | None = None
+    ) -> tuple[int, Any]:
+        """Perform a GET request and return status code and JSON data."""
+        async with httpx.AsyncClient(
+            timeout=self.timeout, headers=_auth_headers()
+        ) as client:
+            resp = await client.get(url, params=params)
+            try:
+                data = resp.json()
+            except Exception:  # noqa: BLE001
+                data = {"raw": resp.text}
+            return resp.status_code, data
+
+    async def _post_json(
+        self, url: str, *, json_body: dict[str, Any], extra_headers: dict[str, str] | None = None
+    ) -> tuple[int, Any, str]:
+        """Perform a POST request and return status code, JSON data, and raw text."""
+        headers = _auth_headers()
+        if extra_headers:
+            headers.update(extra_headers)
+        async with httpx.AsyncClient(timeout=self.timeout, headers=headers) as client:
+            resp = await client.post(url, json=json_body)
+            text = resp.text
+            try:
+                data = resp.json()
+            except Exception:  # noqa: BLE001
+                data = {"raw": text}
+            return resp.status_code, data, text
+
+    def _map_catalog_item_to_app(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Map catalog entity to app-like dict for backward compatibility.
+
+        Matrix-Hub (new) is catalog-centric. Guardian historically expects "apps".
+        This provides a non-destructive shim.
+
+        Args:
+            item: Catalog entity dictionary from the new API
+
+        Returns:
+            Dict[str, Any]: App-like dictionary compatible with legacy code
+        """
+        # Prefer 'id' from catalog; fall back to common fields.
+        uid = item.get("id") or item.get("uid") or item.get("entity_uid")
+        return {
+            "uid": uid,
+            "id": uid,
+            "name": item.get("name") or uid,
+            "type": item.get("type"),
+            "version": item.get("version") or item.get("ver"),
+            "description": item.get("description") or item.get("summary"),
+            "tags": item.get("tags"),
+            # preserve original payload for debugging
+            "_raw": item,
+        }
+
     # ---------- Read Operations ----------
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, min=0.5, max=4))
@@ -97,12 +155,28 @@ class MatrixHubClient:
             >>> for app in apps:
             ...     print(app["uid"])
         """
+        # Legacy endpoint (older Hub)
         url = f"{self.base_url}/apps"
-        async with httpx.AsyncClient(timeout=self.timeout, headers=_auth_headers()) as client:
-            resp = await client.get(url, params={"limit": limit, "offset": offset})
-            resp.raise_for_status()
-            data = resp.json() or {}
-            return data.get("items", [])
+        status, data = await self._get_json(url, params={"limit": limit, "offset": offset})
+        if status != 404:
+            # Keep legacy behavior
+            if status >= 400:
+                raise httpx.HTTPStatusError(
+                    "list_apps failed", request=None, response=None  # type: ignore[arg-type]
+                )
+            return (data or {}).get("items", [])
+
+        # New Matrix-Hub compatibility: discover via catalog search
+        # Public read endpoint; do not include pending by default.
+        url2 = f"{self.base_url}/catalog/search"
+        params2: dict[str, Any] = {"limit": limit, "offset": offset, "include_pending": "false"}
+        status2, data2 = await self._get_json(url2, params=params2)
+        if status2 >= 400:
+            raise httpx.HTTPStatusError(
+                "list_apps(catalog) failed", request=None, response=None  # type: ignore[arg-type]
+            )
+        items = (data2 or {}).get("items", [])
+        return [self._map_catalog_item_to_app(i) for i in items]
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, min=0.5, max=4))
     async def get_app_or_none(self, uid: str) -> dict[str, Any] | None:
@@ -124,13 +198,29 @@ class MatrixHubClient:
             >>> if app:
             ...     print(app["name"])
         """
+        # Legacy endpoint (older Hub)
         url = f"{self.base_url}/apps/{uid}"
-        async with httpx.AsyncClient(timeout=self.timeout, headers=_auth_headers()) as client:
-            resp = await client.get(url)
-            if resp.status_code == 404:
+        status, data = await self._get_json(url)
+        if status == 404:
+            # New Matrix-Hub: entity detail is catalog-based
+            url2 = f"{self.base_url}/catalog/entities/{uid}"
+            status2, data2 = await self._get_json(url2)
+            if status2 == 404:
                 return None
-            resp.raise_for_status()
-            return resp.json()
+            if status2 >= 400:
+                raise httpx.HTTPStatusError(
+                    "get_app_or_none(catalog) failed",
+                    request=None,  # type: ignore[arg-type]
+                    response=None,  # type: ignore[arg-type]
+                )
+            return self._map_catalog_item_to_app(
+                data2 if isinstance(data2, dict) else {"id": uid, "_raw": data2}
+            )
+        if status >= 400:
+            raise httpx.HTTPStatusError(
+                "get_app_or_none failed", request=None, response=None  # type: ignore[arg-type]
+            )
+        return data
 
     # ---------- Write Operations ----------
 
@@ -178,9 +268,9 @@ class MatrixHubClient:
             ... )
         """
         url = f"{self.base_url}/status"
-        headers = _auth_headers()
+        extra_headers: dict[str, str] = {}
         if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
+            extra_headers["Idempotency-Key"] = idempotency_key
 
         payload = {
             "entity_uid": entity_uid,
@@ -193,10 +283,23 @@ class MatrixHubClient:
             "reasons": reasons,
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout, headers=headers) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        # Try legacy write-back endpoint; if missing in new Matrix-Hub, fail gracefully.
+        status_code, data, text = await self._post_json(
+            url, json_body=payload, extra_headers=extra_headers if extra_headers else None
+        )
+        if status_code == 404:
+            logger.warning(
+                "Matrix-Hub has no /status endpoint. Skipping status write-back. "
+                "Discovery still works via /catalog/*."
+            )
+            return {"skipped": True, "reason": "status_endpoint_missing"}
+        if status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"upsert_status failed: {status_code} {text}",
+                request=None,  # type: ignore[arg-type]
+                response=None,  # type: ignore[arg-type]
+            )
+        return data
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, min=0.5, max=4))
     async def record_event(
@@ -245,15 +348,21 @@ class MatrixHubClient:
         if entity_uid and "entity_uid" not in body:
             body["entity_uid"] = entity_uid
 
-        async with httpx.AsyncClient(timeout=self.timeout, headers=_auth_headers()) as client:
-            resp = await client.post(url, json=body)
-            if resp.status_code not in (200, 201, 202):
-                logger.warning(
-                    "record_event(%s) unexpected status=%s body=%s",
-                    type_,
-                    resp.status_code,
-                    resp.text,
-                )
+        status_code, _data, text = await self._post_json(url, json_body=body)
+        if status_code == 404:
+            logger.warning(
+                "Matrix-Hub has no %s endpoint. Skipping event write-back. "
+                "Discovery still works via /catalog/*.",
+                url,
+            )
+            return
+        if status_code not in (200, 201, 202):
+            logger.warning(
+                "record_event(%s) unexpected status=%s body=%s",
+                type_,
+                status_code,
+                text,
+            )
 
 
 __all__ = ["MatrixHubClient"]

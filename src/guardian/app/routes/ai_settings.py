@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
