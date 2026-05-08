@@ -1,0 +1,29 @@
+schema_version: "0.1"
+repo:
+  owner: "agent-matrix"
+  name: "matrix-guardian"
+  full_name: "agent-matrix/matrix-guardian"
+  role: "governance"
+alive:
+  participates: true
+  contracts_version: "0.2"
+maintenance:
+  maintainer: "matrix-maintainer"
+  repair_enabled: true
+  repair_constraints:
+    - pr_only
+    - run_tests
+governance:
+  risk_level: critical
+  requires_approval: true
+  approver: "self"
+economics:
+  budget_aware: true
+  reporter: "matrix-treasury"
+events:
+  emitted: []
+  consumed: []
+health:
+  type: "http"
+  endpoint: "/health"
+  command: ""
