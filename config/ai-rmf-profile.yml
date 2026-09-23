@@ -1,0 +1,37 @@
+profile_version: 1
+reference:
+  framework: NIST AI RMF 1.0
+  generative_ai_profile: NIST AI 600-1
+  note: >
+    AI RMF 1.0 is under revision as of 2026. Keep this mapping versioned and
+    update it when NIST publishes a successor framework.
+functions:
+  GOVERN:
+    agent_matrix:
+      - policy-as-code
+      - separation-of-authority
+      - human-approval-gates
+      - immutable-evidence
+      - emergency-stop
+  MAP:
+    agent_matrix:
+      - capability-inventory
+      - plan-impact-surface
+      - tenant-scope
+      - data-sensitivity
+      - dependency-provenance
+  MEASURE:
+    agent_matrix:
+      - risk-level
+      - AM-Bench
+      - safety-regressions
+      - uncertainty
+      - cost-and-resource-use
+  MANAGE:
+    agent_matrix:
+      - allow
+      - allow-with-limits
+      - sandbox
+      - human-approval
+      - deny
+      - emergency-stop
