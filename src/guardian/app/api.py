@@ -28,6 +28,7 @@ from .routes import health as health_router
 from .routes import probes as probes_router
 from .routes import resume as resume_router
 from .routes import threads as threads_router
+from .routes import evaluate as evaluate_router
 
 
 # Initialize logging and settings
@@ -47,6 +48,7 @@ app.include_router(threads_router.router, tags=["Threads"])
 app.include_router(probes_router.router, tags=["Probes"])
 app.include_router(config_router.router, tags=["Configuration"])
 app.include_router(ai_settings_router.router, tags=["AI Settings"])
+app.include_router(evaluate_router.router, tags=["Policy"])
 
 
 @app.on_event("startup")
